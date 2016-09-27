@@ -8,7 +8,10 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public interface Searcher {
-    boolean foundNew();
+	String[] KEYWORDS = {"ICT", "Software", "CSE", "Lecturer", "Dhaka"};
+	String[] WORDS = {"Published", "Vacancies", "Job Nature", "Experience", "Job Location", "Salary Range", "Application Deadline"};
 
-    boolean sendEmail();
+	boolean foundNew();
+
+	boolean sendEmail();
 }

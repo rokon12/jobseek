@@ -16,9 +16,6 @@ public class MainApp implements CommandLineRunner {
 	@Autowired
 	private Searcher searcher;
 
-	@Autowired
-	private EmailService emailService;
-
 	public static void main(String[] args) {
 		SpringApplication.run(MainApp.class, args);
 	}
@@ -30,8 +27,5 @@ public class MainApp implements CommandLineRunner {
 		if (foundNew) {
 			searcher.sendEmail();
 		}
-
-		//emailService.sendEmail("hello world!");
-
 	}
 }
