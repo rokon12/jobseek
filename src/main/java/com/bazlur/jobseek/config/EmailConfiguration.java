@@ -1,4 +1,4 @@
-package com.bazlur.jobseek;
+package com.bazlur.jobseek.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,5 +74,4 @@ public class EmailConfiguration implements EnvironmentAware {
 
 		return sender;
 	}
-
 }

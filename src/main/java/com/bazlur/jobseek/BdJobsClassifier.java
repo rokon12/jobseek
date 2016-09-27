@@ -15,6 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
@@ -36,8 +37,13 @@ public class BdJobsClassifier implements Searcher {
 
 	private List<JobSummery> jobSummaries = new ArrayList<>();
 
+	private List<String> notBdJobsList = new ArrayList<>();
+
 	@Autowired
 	private EmailService emailService;
+
+	@Autowired
+	private Executor executor;
 
 	public boolean foundNew() {
 		log.info("[event:FOUND_NEW] going to fetch new job information");
@@ -53,6 +59,7 @@ public class BdJobsClassifier implements Searcher {
 			log.info("Couldn't find extract information", e);
 		}
 
+		log.info("Total outside bd jobs: :{}", notBdJobsList.size());
 		return !jobSummaries.isEmpty();
 	}
 
@@ -87,7 +94,7 @@ public class BdJobsClassifier implements Searcher {
 
 	private CompletableFuture<Optional<JobSummery>> parseJobSummery(Element element) {
 		String url = element.getElementsByTag("a").attr("href");
-		CompletableFuture<Optional<JobSummery>> optionalCompletableFuture = CompletableFuture.supplyAsync(() -> doParse(url));
+		CompletableFuture<Optional<JobSummery>> optionalCompletableFuture = CompletableFuture.supplyAsync(() -> doParse(url), executor);
 
 		return optionalCompletableFuture
 			.exceptionally(throwable -> {
@@ -102,6 +109,16 @@ public class BdJobsClassifier implements Searcher {
 			url = "http://bdnews24.com" + url;
 			Document doc = Jsoup.connect(url).get();
 			String baseUrl = doc.baseUri();
+
+			if (!baseUrl.contains("bdjobs.com")) {
+				notBdJobsList.add(baseUrl);
+
+				return Optional.empty();
+			}
+			log.info("parsing url: {}", baseUrl);
+
+			String jobTitle = doc.getElementsByClass("job-title").text();
+			String companyName = doc.getElementsByClass("company-name").text();
 
 			Elements elementsByClass = doc.getElementsByClass("m-view");
 			Optional<Element> firstElementOptional = elementsByClass.stream().filter(element -> {
@@ -123,8 +140,11 @@ public class BdJobsClassifier implements Searcher {
 					.map(e -> e.text().replaceAll("\u00A0", ""))
 					.collect(Collectors.toList());
 
-				JobSummery parse = parse(list, baseUrl);
-				return Optional.of(parse);
+				JobSummery jobSummery = parse(list, baseUrl);
+				jobSummery.setCompanyName(companyName);
+				jobSummery.setJobTitle(jobTitle);
+
+				return Optional.of(jobSummery);
 			}
 		} catch (IOException e) {
 			log.info("couldn't fetch item from url: {}", url);
@@ -188,18 +208,42 @@ public class BdJobsClassifier implements Searcher {
 		builder.append("Available jobs in Dhaka");
 		builder.append("<br/>");
 
-		builder.append("<table>")
+		builder.append("<table style=\"1px solid black;\"> ")
 			.append("<tr>");
-		Arrays.stream(WORDS).forEach(s -> builder.append("<td>")
+
+		builder.append("<th>")
+			.append("#")
+			.append("</th>");
+		builder.append("<th>")
+			.append("Job Title")
+			.append("Company")
+			.append("</th>");
+		builder.append("<th>")
+			.append("Company")
+			.append("</th>");
+		Arrays.stream(WORDS).forEach(s -> builder.append("<th>")
 			.append(s)
-			.append("</td>"));
+			.append("</th>"));
 		builder.append("<td>")
 			.append("Details")
 			.append("</td>");
 		builder.append("</tr>");
 
+		final int[] index = {0};
 		jobSummaries.forEach(jobSummery -> {
 			builder.append("<tr>");
+			builder.append("<td>").
+				append(++index[0])
+				.append("</td>");
+
+			builder.append("<td>").
+				append(jobSummery.getJobTitle())
+				.append("</td>");
+
+			builder.append("<td>").
+				append(jobSummery.getCompanyName())
+				.append("</td>");
+
 			builder.append("<td>").
 				append(jobSummery.getPublishedOn())
 				.append("</td>");
@@ -219,7 +263,6 @@ public class BdJobsClassifier implements Searcher {
 			builder.append("<td>").
 				append(jobSummery.getJobLocation())
 				.append("</td>");
-
 			builder.append("<td>").
 				append(jobSummery.getSalaryRange())
 				.append("</td>");
@@ -241,8 +284,6 @@ public class BdJobsClassifier implements Searcher {
 		builder.append("-");
 		builder.append("<br/>");
 		builder.append("Job Seek Robot!");
-
-		System.out.println(builder.toString());
 
 		emailService.sendEmail(builder.toString());
 		return true;

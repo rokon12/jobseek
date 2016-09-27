@@ -10,11 +10,29 @@ public class JobSummery {
     private String url;
     private LocalDate publishedOn;
     private int vacancies;
+    private String jobTitle;
+    private String companyName;
     private String jobNature;
     private String experience;
     private String jobLocation;
     private String salaryRange;
     private LocalDate deadLine;
+
+    public String getJobTitle() {
+        return jobTitle;
+    }
+
+    public void setJobTitle(String jobTitle) {
+        this.jobTitle = jobTitle;
+    }
+
+    public String getCompanyName() {
+        return companyName;
+    }
+
+    public void setCompanyName(String companyName) {
+        this.companyName = companyName;
+    }
 
     public String getUrl() {
         return url;
