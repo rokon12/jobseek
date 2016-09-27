@@ -1,9 +1,13 @@
 package com.bazlur.jobseek;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import javax.mail.MessagingException;
 import javax.mail.internet.MimeMessage;
 
 /**
@@ -12,12 +16,29 @@ import javax.mail.internet.MimeMessage;
  */
 @Service
 public class EmailService {
+	public static final String UTF_8 = "UTF-8";
 
-    @Autowired
-    private JavaMailSenderImpl javaMailSender;
+	private static final Logger log = LoggerFactory.getLogger(EmailService.class);
 
-    public void sendEmail() {
-        MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+	@Autowired
+	private JavaMailSenderImpl javaMailSender;
 
-    }
+	public void sendEmail(String content) {
+		log.info("sending email");
+		MimeMessage mimeMessage = javaMailSender.createMimeMessage();
+		MimeMessageHelper message;
+		try {
+			message = new MimeMessageHelper(mimeMessage, false, UTF_8);
+			message.setTo("anmbrr.bit0112@gmail.com");
+			message.setFrom("no-reply@bazlur.com");
+			message.setSubject("New Job Alert");
+			message.setText(content, true);
+
+			javaMailSender.send(mimeMessage);
+		} catch (MessagingException e) {
+			e.printStackTrace();
+		}
+
+
+	}
 }

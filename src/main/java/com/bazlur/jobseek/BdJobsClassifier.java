@@ -23,185 +23,221 @@ import java.util.stream.Collectors;
  */
 @Service
 public class BdJobsClassifier implements Searcher {
-    private static final String URL = "http://bdnews24.com/jobs/university-lecturer-jobs.html";
+	private static final Logger log = LoggerFactory.getLogger(BdJobsClassifier.class);
 
-    private String[] keywords = {"ICT", "Software", "CSE", "Lecturer", "Dhaka"};
-    private String[] words = {"Published", "Vacancies", "Job Nature", "Experience", "Job Location", "Salary Range", "Application Deadline"};
+	private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("MMM d, yyyy");
 
-    private List<JobSummery> jobSummaries = new ArrayList<>();
+	//TODO keep a cache to prevent the same email again and again
+	//Map<K, V> myCache = Collections.synchronizedMap(new WeakHashMap<K, V>());
 
-    @Autowired
-    private EmailService emailService;
+	private static final String URL = "http://bdnews24.com/jobs/university-lecturer-jobs.html";
+	private static final String[] KEYWORDS = {"ICT", "Software", "CSE", "Lecturer", "Dhaka"};
+	private static final String[] WORDS = {"Published", "Vacancies", "Job Nature", "Experience", "Job Location", "Salary Range", "Application Deadline"};
 
-    private static final Logger log = LoggerFactory.getLogger(BdJobsClassifier.class);
+	private List<JobSummery> jobSummaries = new ArrayList<>();
 
-    public boolean foundNew() {
-        log.info("found new called: {}");
+	@Autowired
+	private EmailService emailService;
 
-        try {
-            Document doc = Jsoup.connect(URL).get();
-            Element mainM2List = doc.getElementById("ResultsPageRight");
-            Elements sections = mainM2List.getElementsByTag("section");
+	public boolean foundNew() {
+		log.info("[event:FOUND_NEW] going to fetch new job information");
 
-            List<JobSummery> jobSummaries = sections.stream()
-                    .filter(element -> element.getElementsByTag("h2") != null)
-                    .filter(this::filterJSoupElement)
-                    .map(this::getOptionalCompletableFuture)
-                    .map(this::extractFromFuture)
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .filter(jobSummery -> contains(jobSummery.getJobLocation(), "dhaka"))
-                    .filter(jobSummery -> jobSummery.getDeadLine().isAfter(LocalDate.now()))
-                    .collect(Collectors.toList());
+		try {
+			Document doc = Jsoup.connect(URL).timeout(10 * 1000).get();
+			Element mainM2List = doc.getElementById("ResultsPageRight");
+			Elements sections = mainM2List.getElementsByTag("section");
+			List<JobSummery> jobSummaries = findNewJobSummaries(sections);
 
-            this.jobSummaries = new ArrayList<>(jobSummaries);
+			this.jobSummaries = new ArrayList<>(jobSummaries);
+		} catch (IOException e) {
+			log.info("Couldn't find extract information", e);
+		}
 
-        } catch (IOException e) {
-            log.info("Couldn't find extract information");
-        }
+		return !jobSummaries.isEmpty();
+	}
 
-        return !jobSummaries.isEmpty();
-    }
+	private List<JobSummery> findNewJobSummaries(Elements sections) {
 
-    private boolean filterJSoupElement(Element element) {
-        String html = element.html();
-        return Arrays.stream(keywords).anyMatch(s -> contains(html, s));
-    }
+		return sections.stream()
+			.filter(element -> element.getElementsByTag("h2") != null)
+			.filter(this::filterJSoupElement)
+			.map(this::parseJobSummery)
+			.map(this::extract)
+			.filter(Optional::isPresent)
+			.map(Optional::get)
+			.filter(jobSummery -> contains(jobSummery.getJobLocation(), "dhaka"))
+			.filter(jobSummery -> jobSummery.getDeadLine().isAfter(LocalDate.now()))
+			.collect(Collectors.toList());
+	}
 
-    private Optional<JobSummery> extractFromFuture(CompletableFuture<Optional<?>> future) {
-        try {
-            //cast is required
-            return (Optional<JobSummery>) future.get();
-        } catch (InterruptedException | ExecutionException e) {
-            return Optional.empty();
-        }
-    }
+	private boolean filterJSoupElement(Element element) {
+		String html = element.html();
+		return Arrays.stream(KEYWORDS).anyMatch(s -> contains(html, s));
+	}
 
-    private CompletableFuture<Optional<?>> getOptionalCompletableFuture(Element element) {
-        String url = element.getElementsByTag("a").attr("href");
+	private Optional<JobSummery> extract(CompletableFuture<Optional<JobSummery>> future) {
+		try {
+			return future.get();
+		} catch (InterruptedException | ExecutionException e) {
+			log.error("Couldn't extract data from CompletableFuture", e);
+		}
 
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return doParse(url);
-            } catch (IOException e1) {
-                log.error("Couldn't get item: ", e1);
-                return Optional.empty();
-            }
-        })
-                .exceptionally(throwable -> {
-                    log.error("couldn't found", throwable);
-                    return Optional.empty();
-                });
-    }
+		return Optional.empty();
+	}
 
-    private Optional<JobSummery> doParse(String url) throws IOException {
-        try {
-            url = "http://bdnews24.com" + url;
-            Document doc = Jsoup.connect(url).get();
-            String baseUrl = doc.baseUri();
+	private CompletableFuture<Optional<JobSummery>> parseJobSummery(Element element) {
+		String url = element.getElementsByTag("a").attr("href");
+		CompletableFuture<Optional<JobSummery>> optionalCompletableFuture = CompletableFuture.supplyAsync(() -> doParse(url));
 
-            Elements elementsByClass = doc.getElementsByClass("m-view");
-            Optional<Element> firstElementOptional = elementsByClass.stream().filter(element -> {
-                Elements body = element.getElementsByClass("job-summary");
-                return !body.isEmpty();
-            }).findFirst();
+		return optionalCompletableFuture
+			.exceptionally(throwable -> {
+				log.error("couldn't complete the request", throwable);
 
-            if (firstElementOptional.isPresent()) {
-                Element element = firstElementOptional.get();
+				return Optional.empty();
+			});
+	}
 
-                Elements h4s = element.getElementsByTag("h4");
-                Set<Element> summaries = h4s.stream().filter(e -> {
-                    String html = e.html();
-                    return Arrays.stream(words).anyMatch(s -> contains(html, s));
-                }).collect(Collectors.toSet());
+	private Optional<JobSummery> doParse(String url) {
+		try {
+			url = "http://bdnews24.com" + url;
+			Document doc = Jsoup.connect(url).get();
+			String baseUrl = doc.baseUri();
 
-                List<String> list = summaries.stream()
-                        .map(e -> e.text().replaceAll("\u00A0", ""))
-                        .collect(Collectors.toList());
+			Elements elementsByClass = doc.getElementsByClass("m-view");
+			Optional<Element> firstElementOptional = elementsByClass.stream().filter(element -> {
+				Elements body = element.getElementsByClass("job-summary");
+				return !body.isEmpty();
+			}).findFirst();
 
-                JobSummery parse = parse(list, baseUrl);
-                return Optional.of(parse);
-            }
-        } catch (IOException e) {
-            log.info("couldn't fetch item");
-        }
+			if (firstElementOptional.isPresent()) {
+				Element element = firstElementOptional.get();
 
-        return Optional.empty();
-    }
+				Elements h4s = element.getElementsByTag("h4");
+				Set<Element> summaries = h4s.stream()
+					.filter(e -> {
+						String html = e.html();
+						return Arrays.stream(WORDS).anyMatch(s -> contains(html, s));
+					}).collect(Collectors.toSet());
 
-    private JobSummery parse(List<String> items, String baseUrl) {
-        JobSummery summery = new JobSummery();
-        summery.setUrl(baseUrl);
+				List<String> list = summaries.stream()
+					.map(e -> e.text().replaceAll("\u00A0", ""))
+					.collect(Collectors.toList());
 
-        items.forEach(s -> {
+				JobSummery parse = parse(list, baseUrl);
+				return Optional.of(parse);
+			}
+		} catch (IOException e) {
+			log.info("couldn't fetch item from url: {}", url);
+		}
 
-            String[] split = s.split(":");
-            if (contains(split[0], words[0])) {
-                LocalDate localDate = parseDate(split[1].trim());
-                summery.setPublishedOn(localDate);
-            }
+		return Optional.empty();
+	}
 
-            if (contains(split[0], words[1])) {
-                String trim = split[1].trim();
-                summery.setVacancies(Integer.parseInt(trim));
-            }
+	private JobSummery parse(List<String> items, String baseUrl) {
+		JobSummery summery = new JobSummery();
+		summery.setUrl(baseUrl);
 
-            if (contains(split[0], words[2])) {
-                String trim = split[1].trim();
-                summery.setJobNature(trim);
-            }
+		items.forEach(s -> {
+			String[] split = s.split(":");
+			if (contains(split[0], WORDS[0])) {
+				parseDate(split[1].trim()).ifPresent(summery::setPublishedOn);
+			} else if (contains(split[0], WORDS[1])) {
+				String trim = split[1].trim();
+				summery.setVacancies(Integer.parseInt(trim));
+			} else if (contains(split[0], WORDS[2])) {
+				String trim = split[1].trim();
+				summery.setJobNature(trim);
+			} else if (contains(split[0], WORDS[3])) {
+				String trim = split[1].trim();
+				summery.setExperience(trim);
+			} else if (contains(split[0], WORDS[4])) {
+				String trim = split[1].trim();
+				summery.setJobLocation(trim);
+			} else if (contains(split[0], WORDS[5])) {
+				String trim = split[1].trim();
+				summery.setSalaryRange(trim);
+			} else if (contains(split[0], WORDS[6])) {
+				parseDate(split[1].trim()).ifPresent(summery::setDeadLine);
+			}
+		});
 
-            if (contains(split[0], words[3])) {
-                String trim = split[1].trim();
-                summery.setExperience(trim);
-            }
+		return summery;
+	}
 
-            if (contains(split[0], words[4])) {
-                String trim = split[1].trim();
-                summery.setJobLocation(trim);
-            }
+	private Optional<LocalDate> parseDate(String date) {
+		try {
+			String dateString = date.replaceAll("\\s+$", "");
+			LocalDate parsed = LocalDate.parse(dateString, FORMATTER);
 
-            if (contains(split[0], words[5])) {
-                String trim = split[1].trim();
-                summery.setSalaryRange(trim);
-            }
+			return Optional.of(parsed);
+		} catch (Exception e) {
+			log.error("Couldn't parse date : {}", date, e);
+			return Optional.empty();
+		}
+	}
 
-            if (contains(split[0], words[6])) {
-                LocalDate localDate = parseDate(split[1].trim());
-                summery.setDeadLine(localDate);
-            }
-        });
+	private boolean contains(final String haystack, final String needle) {
+		String haystackTemp = ((haystack == null) ? "" : haystack).toLowerCase();
+		String needleTemp = (needle == null ? "" : needle).toLowerCase();
 
-        return summery;
-    }
+		return haystackTemp.contains(needleTemp);
+	}
 
-    public LocalDate parseDate(String date) {
-        try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM d, yyyy");
-            try {
-                String dateString = date.replaceAll("\\s+$", "");
-                dateString = dateString.substring(1);
-                return LocalDate.parse(dateString, formatter);
-            } catch (Exception e) {
-                return LocalDate.parse(date, formatter);
-            }
-        } catch (Exception e) {
-            return null;
-        }
-    }
+	public boolean sendEmail() {
+		String[] WORDS = {"Published", "Vacancies", "Job Nature", "Experience", "Job Location", "Salary Range", "Application Deadline"};
 
-    private boolean contains(String haystack, String needle) {
-        haystack = haystack == null ? "" : haystack;
-        needle = needle == null ? "" : needle;
+		StringBuilder builder = new StringBuilder();
+		builder.append("<table>")
+			.append("<tr>");
+		Arrays.stream(WORDS).forEach(s -> builder.append("<td>")
+			.append(s)
+			.append("</td>"));
+		builder.append("<td>")
+			.append("Details")
+			.append("</td>");
+		builder.append("</tr>");
 
-        return haystack.toLowerCase().contains(needle.toLowerCase());
-    }
+		jobSummaries.forEach(jobSummery -> {
+			builder.append("<tr>");
+			builder.append("<td>").
+				append(jobSummery.getPublishedOn())
+				.append("</td>");
 
-    public boolean sendEmail() {
+			builder.append("<td>").
+				append(jobSummery.getVacancies())
+				.append("</td>");
 
-        jobSummaries.forEach(System.out::println);
+			builder.append("<td>").
+				append(jobSummery.getJobNature())
+				.append("</td>");
 
-        emailService.sendEmail();
-        return false;
-    }
+			builder.append("<td>").
+				append(jobSummery.getExperience())
+				.append("</td>");
+
+			builder.append("<td>").
+				append(jobSummery.getJobLocation())
+				.append("</td>");
+
+			builder.append("<td>").
+				append(jobSummery.getSalaryRange())
+				.append("</td>");
+
+			builder.append("<td>").
+				append(jobSummery.getDeadLine())
+				.append("</td>");
+
+			builder.append("<td>").
+				append(jobSummery.getUrl())
+				.append("</td>");
+
+			builder.append("</tr>");
+		});
+
+		builder.append("</table>");
+		System.out.println(builder.toString());
+
+		emailService.sendEmail(builder.toString());
+		return false;
+	}
 }

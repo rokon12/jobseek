@@ -16,16 +16,21 @@ public class MainApp implements CommandLineRunner {
     @Autowired
     private Searcher searcher;
 
+    @Autowired
+    private EmailService emailService;
+
     public static void main(String[] args) {
         SpringApplication.run(MainApp.class, args);
     }
 
     @Override
     public void run(String... args) throws Exception {
-        boolean foundNew = searcher.foundNew();
+        //boolean foundNew = searcher.foundNew();
 
-        if (foundNew) {
-            searcher.sendEmail();
-        }
+//        if (foundNew) {
+//            searcher.sendEmail();
+//        }
+
+        emailService.sendEmail("hello world");
     }
 }

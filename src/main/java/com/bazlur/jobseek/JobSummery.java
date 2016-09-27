@@ -7,16 +7,6 @@ import java.time.LocalDate;
  * @since 9/27/16.
  */
 public class JobSummery {
-        /*
-<h4> <strong>Published on:</strong>&nbsp;Sep 25, 2016 </h4>
-<h4> <strong>No. of Vacancies:</strong>&nbsp;01 </h4>
-<h4> <strong>Job Nature:</strong>&nbsp;Full-time </h4>
-<h4> <strong>Experience:</strong>&nbsp;2 to 3 year(s) </h4>
-<h4> <strong>Job Location:</strong>&nbsp;Dhaka </h4>
-<h4> <strong>Salary Range:</strong>&nbsp;Negotiable </h4>
-<h4> <strong>Application Deadline:</strong>&nbsp;Oct 6, 2016 </h4>
-        * */
-
     private String url;
     private LocalDate publishedOn;
     private int vacancies;

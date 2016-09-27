@@ -1,4 +1,4 @@
-package com.bazlur.jobseek;
+package com.bazlur.jobseek.utils;
 
 /**
  * @author Bazlur Rahman Rokon

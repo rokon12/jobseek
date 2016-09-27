@@ -1,4 +1,4 @@
-package com.bazlur.jobseek;
+package com.bazlur.jobseek.utils;
 
 import java.io.Serializable;
 import java.util.Objects;
