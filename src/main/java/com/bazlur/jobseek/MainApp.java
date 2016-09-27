@@ -13,24 +13,25 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class MainApp implements CommandLineRunner {
 
-    @Autowired
-    private Searcher searcher;
+	@Autowired
+	private Searcher searcher;
 
-    @Autowired
-    private EmailService emailService;
+	@Autowired
+	private EmailService emailService;
 
-    public static void main(String[] args) {
-        SpringApplication.run(MainApp.class, args);
-    }
+	public static void main(String[] args) {
+		SpringApplication.run(MainApp.class, args);
+	}
 
-    @Override
-    public void run(String... args) throws Exception {
-        //boolean foundNew = searcher.foundNew();
+	@Override
+	public void run(String... args) throws Exception {
+		boolean foundNew = searcher.foundNew();
 
-//        if (foundNew) {
-//            searcher.sendEmail();
-//        }
+		if (foundNew) {
+			searcher.sendEmail();
+		}
 
-        emailService.sendEmail("hello world");
-    }
+		//emailService.sendEmail("hello world!");
+
+	}
 }

@@ -184,9 +184,10 @@ public class BdJobsClassifier implements Searcher {
 	}
 
 	public boolean sendEmail() {
-		String[] WORDS = {"Published", "Vacancies", "Job Nature", "Experience", "Job Location", "Salary Range", "Application Deadline"};
-
 		StringBuilder builder = new StringBuilder();
+		builder.append("Available jobs in Dhaka");
+		builder.append("<br/>");
+
 		builder.append("<table>")
 			.append("<tr>");
 		Arrays.stream(WORDS).forEach(s -> builder.append("<td>")
@@ -212,7 +213,7 @@ public class BdJobsClassifier implements Searcher {
 				.append("</td>");
 
 			builder.append("<td>").
-				append(jobSummery.getExperience())
+				append(jobSummery.getExperience() == null ? "" : jobSummery.getExperience())
 				.append("</td>");
 
 			builder.append("<td>").
@@ -235,9 +236,15 @@ public class BdJobsClassifier implements Searcher {
 		});
 
 		builder.append("</table>");
+		builder.append("<br/>");
+		builder.append("<br/>");
+		builder.append("-");
+		builder.append("<br/>");
+		builder.append("Job Seek Robot!");
+
 		System.out.println(builder.toString());
 
 		emailService.sendEmail(builder.toString());
-		return false;
+		return true;
 	}
 }

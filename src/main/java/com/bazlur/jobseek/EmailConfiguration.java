@@ -32,7 +32,8 @@ public class EmailConfiguration implements EnvironmentAware {
 	private static final String PROP_SMTP_AUTH = "mail.smtp.auth";
 	private static final String PROP_STARTTLS = "mail.smtp.starttls.enable";
 	private static final String PROP_TRANSPORT_PROTO = "mail.transport.protocol";
-	private static final String MAIL_DEBUG = "mail.debug";
+
+	private static final String MAIL_DEBUG = "debug";
 	private RelaxedPropertyResolver propertyResolver;
 
 	@Override
@@ -42,15 +43,15 @@ public class EmailConfiguration implements EnvironmentAware {
 
 	@Bean
 	public JavaMailSenderImpl javaMailSender() {
-		log.debug("Configuring mail server");
+		log.info("Configuring mail server");
 		String host = propertyResolver.getProperty(PROP_HOST, DEFAULT_PROP_HOST);
 		int port = propertyResolver.getProperty(PROP_PORT, Integer.class, 0);
 		String user = propertyResolver.getProperty(PROP_USER);
 		String password = propertyResolver.getProperty(PROP_PASSWORD);
 		String protocol = propertyResolver.getProperty(PROP_PROTO);
 		Boolean tls = propertyResolver.getProperty(PROP_TLS, Boolean.class, true);
-		Boolean auth = propertyResolver.getProperty(PROP_AUTH, Boolean.class, false);
-		Boolean debug = propertyResolver.getProperty(MAIL_DEBUG, Boolean.class, false);
+		Boolean auth = propertyResolver.getProperty(PROP_AUTH, Boolean.class, true);
+		Boolean debug = propertyResolver.getProperty(MAIL_DEBUG, Boolean.class, true);
 
 		JavaMailSenderImpl sender = new JavaMailSenderImpl();
 		if (host != null && !host.isEmpty()) {
@@ -68,7 +69,7 @@ public class EmailConfiguration implements EnvironmentAware {
 		sendProperties.setProperty(PROP_SMTP_AUTH, auth.toString());
 		sendProperties.setProperty(PROP_STARTTLS, tls.toString());
 		sendProperties.setProperty(PROP_TRANSPORT_PROTO, protocol);
-		sendProperties.setProperty(MAIL_DEBUG, debug.toString());
+		sendProperties.setProperty("mail.debug", debug.toString());
 		sender.setJavaMailProperties(sendProperties);
 
 		return sender;

@@ -36,9 +36,7 @@ public class EmailService {
 
 			javaMailSender.send(mimeMessage);
 		} catch (MessagingException e) {
-			e.printStackTrace();
+			log.info("unable to send email", e);
 		}
-
-
 	}
 }
