@@ -217,6 +217,8 @@ public class SearcherImpl implements Searcher {
 		builder.append("Job Seek Robot!");
 
 		emailService.sendEmail(builder.toString());
+
+		JobUrlCache.getInstance().getCache().clear();
 		return true;
 	}
 }
